@@ -3,10 +3,13 @@ from flask import Flask, request, jsonify, send_from_directory
 import chess
 import torch
 import numpy as np
+from io import BytesIO
+from PIL import Image
 
 from glyphs.labelers import board_to_planes, label_glyphs
 from model.drawer import DrawerNet
 from glyphs.spec import GLYPH_CHANNELS
+from render.renderer import render_glyphs
 
 app = Flask(__name__, static_folder="ui", static_url_path="/ui")
 
@@ -44,6 +47,7 @@ def index():
 @app.route("/predict", methods=["GET"])
 def predict():
     fen = request.args.get("fen", None)
+    rb = request.args.get("rb", None)  # force rule-based
     if not fen:
         return jsonify({"error": "Missing fen param"}), 400
     try:
@@ -51,7 +55,7 @@ def predict():
     except Exception as e:
         return jsonify({"error": f"Invalid FEN: {e}"}), 400
 
-    if MODEL is not None:
+    if (MODEL is not None) and (not rb):
         x = torch.from_numpy(board_to_planes(board)).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
             pred = torch.sigmoid(MODEL(x)).cpu().numpy()[0]  # [10,8,8]
@@ -94,10 +98,42 @@ def move():
     out = {name: glyphs[idx].tolist() for idx, name in enumerate(GLYPH_CHANNELS)}
     return jsonify({"fen": new_fen, "glyphs": out})
 
+@app.route("/compare_png", methods=["GET"])
+def compare_png():
+    fen = request.args.get("fen", None)
+    if not fen:
+        return "Missing fen", 400
+    try:
+        board = chess.Board(fen)
+    except Exception as e:
+        return f"Invalid FEN: {e}", 400
+
+    gt = label_glyphs(board)
+
+    if MODEL is not None:
+        x = torch.from_numpy(board_to_planes(board)).unsqueeze(0).to(DEVICE)
+        with torch.no_grad():
+            pred = torch.sigmoid(MODEL(x)).cpu().numpy()[0]
+    else:
+        pred = gt
+
+    img_gt = render_glyphs(board, gt, size=480)
+    img_pr = render_glyphs(board, pred, size=480)
+
+    w = img_gt.width + img_pr.width
+    h = max(img_gt.height, img_pr.height)
+    canvas = Image.new("RGBA", (w, h), (20,20,25,255))
+    canvas.paste(img_gt, (0,0))
+    canvas.paste(img_pr, (img_gt.width, 0))
+
+    bio = BytesIO()
+    canvas.save(bio, format="PNG")
+    bio.seek(0)
+    return app.response_class(bio.getvalue(), mimetype="image/png")
+
 if __name__ == "__main__":
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8000"))
     print("[server] Starting at http://%s:%d" % (host, port))
-    # Print routes so you can confirm /move is registered
     print("[server] Routes:", [str(r) for r in app.url_map.iter_rules()])
     app.run(host=host, port=port, debug=True)

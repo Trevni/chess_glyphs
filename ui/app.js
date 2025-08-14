@@ -17,6 +17,7 @@ const chkAttacks = document.getElementById('chk-attacks');
 const chkHanging = document.getElementById('chk-hanging');
 const chkPins = document.getElementById('chk-pins');
 const chkKing = document.getElementById('chk-king');
+const chkRulebased = (()=>{const l=document.createElement('label'); l.innerHTML='<input type="checkbox" id="chk-rule"> Rule-based only'; document.querySelector('.controls .row.small').appendChild(l); return document.getElementById('chk-rule');})();
 
 // Position state
 let fen = "startpos";
@@ -136,7 +137,7 @@ function drawOverlay(glyphs){
 }
 
 async function refreshGlyphs(){
-  const res = await fetch(`/predict?fen=${encodeURIComponent(fen)}`);
+  const res = await fetch(`/predict?fen=${encodeURIComponent(fen)}${(typeof chkRulebased!=='undefined' && chkRulebased.checked)?'&rb=1':''}`);
   const data = await res.json();
   if (data.glyphs){
     drawOverlay(data.glyphs);
