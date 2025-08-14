@@ -42,10 +42,19 @@ def draw_board(board: chess.Board, size=512):
             r, c = divmod(sq, 8)
             rr = 7 - r
             txt = PIECE_UNICODE[piece.piece_type][piece.color]
-            w, h = dr.textsize(txt, font=font)
+            # Measure text using Pillow's newer API when available
+            try:
+                bbox = dr.textbbox((0, 0), txt, font=font)
+                w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            except AttributeError:
+                # Fallbacks for older versions
+                try:
+                    w, h = font.getsize(txt)
+                except Exception:
+                    w, h = S - 6, S - 6
             x = c*S + (S - w)//2
             y = rr*S + (S - h)//2
-            dr.text((x,y), txt, fill=(0,0,0), font=font)
+            dr.text((x,y), txt, fill=(0,0,0,255), font=font)
     return img
 
 def overlay_heat(img: Image.Image, heat: np.ndarray, color=(255,0,0,80)):
