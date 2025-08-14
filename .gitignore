@@ -1,4 +1,7 @@
 **/*.pyc
+**/*.npy
+**/*.npz
+*.patch
 out/*
 data/positions_openings.jsonl
 data/positions.jsonl
