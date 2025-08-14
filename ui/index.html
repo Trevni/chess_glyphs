@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chess Glyph Drawer — UI</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="controls">
+      <div class="row">
+        <button id="btn-startpos">Start Position</button>
+        <button id="btn-undo">Undo</button>
+        <button id="btn-redo">Redo</button>
+      </div>
+      <div class="row">
+        <input id="fen-input" type="text" placeholder="FEN..." />
+        <button id="btn-setfen">Set FEN</button>
+        <button id="btn-copyfen">Copy FEN</button>
+      </div>
+      <div class="row small">
+        <label><input type="checkbox" id="chk-attacks" checked /> Attacks</label>
+        <label><input type="checkbox" id="chk-hanging" checked /> Hanging</label>
+        <label><input type="checkbox" id="chk-pins" checked /> Pins</label>
+        <label><input type="checkbox" id="chk-king" checked /> King danger</label>
+      </div>
+    </div>
+
+    <div id="board-wrap">
+      <canvas id="board" width="560" height="560"></canvas>
+      <canvas id="overlay" width="560" height="560"></canvas>
+    </div>
+    <div class="hint">Tip: drag from one square to another to make a move. Promotion auto-queens.</div>
+  </div>
+  <script src="/ui/app.js"></script>
+</body>
+</html>
