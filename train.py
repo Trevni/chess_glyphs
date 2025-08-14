@@ -18,7 +18,7 @@ def make_loader(ds, batch_size, workers):
         batch_size=batch_size,
         shuffle=True,
         num_workers=workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         persistent_workers=(workers>0),
         prefetch_factor=4 if workers>0 else None,
     )
@@ -61,14 +61,21 @@ def train(args):
     net = DrawerNet(width=args.width, depth=args.depth).to(device)
     net = net.to(memory_format=torch.channels_last)
     if args.compile and hasattr(torch, "compile"):
+        compiled = False
         try:
+            # Ensure Triton is present for Inductor backend
+            import triton  # noqa: F401
             net = torch.compile(net, mode="reduce-overhead")
             print("[train] torch.compile enabled")
+            compiled = True
         except Exception as e:
-            print(f"[train] torch.compile failed: {e}")
+            print(f"[train] torch.compile disabled: {e}")
+        if not compiled:
+            print("[train] proceeding without torch.compile")
 
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
-    scaler = GradScaler('cuda', enabled=(device.type=='cuda'))
+    # Older Torch versions do not accept device_type in GradScaler
+    scaler = GradScaler(enabled=(device.type=='cuda'))
 
     best_val = float("inf")
     best_epoch = 0

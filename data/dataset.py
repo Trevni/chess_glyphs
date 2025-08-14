@@ -78,6 +78,7 @@ class PrecomputedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         self._lazy_open()
-        x = torch.from_numpy(self._x[idx]).to(torch.float32)
-        y = torch.from_numpy(self._y[idx]).to(torch.float32)
+        # Use torch.tensor to avoid "non-writable numpy array" warnings and ensure dtype conversion
+        x = torch.tensor(self._x[idx], dtype=torch.float32)
+        y = torch.tensor(self._y[idx], dtype=torch.float32)
         return x, y
