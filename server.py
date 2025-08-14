@@ -6,7 +6,7 @@ import numpy as np
 from io import BytesIO
 from PIL import Image
 
-from glyphs.labelers import board_to_planes, label_glyphs
+from glyphs.labelers import board_to_planes, label_glyphs, global_stats
 from model.drawer import DrawerNet
 from glyphs.spec import GLYPH_CHANNELS
 from render.renderer import render_glyphs
@@ -15,24 +15,30 @@ app = Flask(__name__, static_folder="ui", static_url_path="/ui")
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL = None
+MODEL_OUT_CH = None
 
 def maybe_load_model():
     global MODEL
     ckpt_path = os.path.join("checkpoints", "drawer.pt")
     if os.path.exists(ckpt_path):
         try:
-            net = DrawerNet().to(DEVICE)
+            from glyphs.spec import GLYPH_CHANNELS
+            net = DrawerNet(out_ch=len(GLYPH_CHANNELS)).to(DEVICE)
             ckpt = torch.load(ckpt_path, map_location=DEVICE)
             net.load_state_dict(ckpt["state_dict"])
             net.eval()
             MODEL = net
+            global MODEL_OUT_CH
+            MODEL_OUT_CH = getattr(net, 'out_ch', None)
             print("[server] Loaded model from", ckpt_path)
         except Exception as e:
             print("[server] Failed to load model, falling back to rule-based:", e)
             MODEL = None
+            MODEL_OUT_CH = None
     else:
         print("[server] No checkpoint found; using rule-based glyphs.")
         MODEL = None
+        MODEL_OUT_CH = None
 
 maybe_load_model()
 
@@ -55,16 +61,28 @@ def predict():
     except Exception as e:
         return jsonify({"error": f"Invalid FEN: {e}"}), 400
 
-    if (MODEL is not None) and (not rb):
+    use_model = (MODEL is not None) and (not rb)
+    # Safe-guard: channel mismatch -> fall back to rule-based
+    if use_model and MODEL_OUT_CH is not None:
+        from glyphs.spec import GLYPH_CHANNELS
+        if MODEL_OUT_CH != len(GLYPH_CHANNELS):
+            use_model = False
+
+    if use_model:
         x = torch.from_numpy(board_to_planes(board)).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
-            pred = torch.sigmoid(MODEL(x)).cpu().numpy()[0]  # [10,8,8]
+            pred = torch.sigmoid(MODEL(x)).cpu().numpy()[0]
         glyphs = pred
     else:
         glyphs = label_glyphs(board)
 
-    out = {name: glyphs[idx].tolist() for idx, name in enumerate(GLYPH_CHANNELS)}
-    return jsonify({"glyphs": out})
+    # Return as dict of channel -> 8x8 floats and globals
+    from glyphs.spec import GLYPH_CHANNELS
+    out = {}
+    for idx, name in enumerate(GLYPH_CHANNELS):
+        out[name] = glyphs[idx].tolist()
+    globs = global_stats(board)
+    return jsonify({"glyphs": out, "globals": globs})
 
 @app.route("/move", methods=["POST"])
 def move():

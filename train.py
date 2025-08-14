@@ -7,6 +7,7 @@ from data.dataset import PrecomputedDataset
 from model.drawer import DrawerNet
 from utils.metrics import bce_with_logits, per_channel_iou_from_logits
 from torch.amp import autocast, GradScaler
+from glyphs.spec import GLYPH_CHANNELS
 
 def l1_sparse_loss(pred_logits, weight=5e-4):
     p = torch.sigmoid(pred_logits)
@@ -58,7 +59,7 @@ def train(args):
     val_loader   = make_loader(val_ds,   args.batch_size, args.workers)
 
     # Model
-    net = DrawerNet(width=args.width, depth=args.depth).to(device)
+    net = DrawerNet(width=args.width, depth=args.depth, out_ch=len(GLYPH_CHANNELS)).to(device)
     net = net.to(memory_format=torch.channels_last)
     if args.compile and hasattr(torch, "compile"):
         compiled = False
